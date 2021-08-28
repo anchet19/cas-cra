@@ -56,7 +56,6 @@ function App() {
       if (nflState.season_type === 'regular') {
         setCurrentPage(nflState.leg)
       }
-      console.log(nflState);
       const members = users.map(({
         user_id,
         display_name,
@@ -159,6 +158,7 @@ function App() {
       const loss = losers.find((loser) => roster_id === loser.roster_id) ? 1 : 0
       return {
         header: team_name ?? display_name,
+        roster_id,
         loss,
         record: `${wins}-${losses}-${ties}`,
         adds,
@@ -173,7 +173,7 @@ function App() {
 
   return (
     <div className="container-fluid">
-      <div className="content">
+      <div className="table-responsive">
         <table className="table caption-top">
           <caption>
             <strong>Weekly Costs Summary:</strong>
@@ -208,19 +208,33 @@ function App() {
             }
           </tbody>
         </table>
+      </div>
+      <div className="content">
         <nav aria-label="Table pagination">
           <ul className="pagination">
             <li className={`page-item ${pages[0] === 1 ? 'disabled' : ''}`}>
-              <button className="page-link" onClick={handlePageLeft} ariaLabel="Previous">
+              <button className="page-link" onClick={handlePageLeft} aria-label="Previous">
                 <span aria-hidden="true">&laquo;</span>
               </button>
             </li>
             {
-              pages.map(page => (
-                <li className={`page-item ${currentPage === page ? 'active' : ''}`} ariaCurrent={`${currentPage === page ? 'page' : ''}`}>
-                  <button className="page-link" onClick={() => { handlePageSelect(page) }}>{page}</button>
-                </li>
-              ))
+              pages.map(page => {
+                const props = {
+                  className: 'page-item'
+                }
+                if (currentPage === page) {
+                  props.className = `${props.className} active`
+                  props["aria-current"] = "page"
+                }
+                return (
+                  <li
+                    key={`page-item-${page}`}
+                    {...props}
+                  >
+                    <button key={`page-link-${page}`} className="page-link" onClick={() => { handlePageSelect(page) }}>{page}</button>
+                  </li>
+                )
+              })
             }
             <li className={`page-item ${pages[pages.length - 1] === Settings.WEEKS ? 'disabled' : ''}`}>
               <button className="page-link" onClick={handlePageRight} aria-label="Next">
