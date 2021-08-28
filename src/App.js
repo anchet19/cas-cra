@@ -22,6 +22,10 @@ async function getMatchups(leg) {
   return fetch(`${baseUrl}/league/${Settings.ID}/matchups/${leg}`).then(res => res.json())
 }
 
+async function getNFLState() {
+  return fetch(`${baseUrl}/state/nfl`).then(res => res.json())
+}
+
 const TRANSACTION_TYPE = {
   TRADE: 'trade',
   WAIVER: 'waiver',
@@ -31,13 +35,21 @@ const TRANSACTION_TYPE = {
 function App() {
   // eslint-disable-next-line
   const [league, setLeague] = useState({})
-  const [transactions, setTransactions] = useState({})
+  const [losers, setLosers] = useState([])
   const [members, setMembers] = useState([])
+  // eslint-disable-next-line
+  const [nflState, setNflState] = useState({});
+  const [transactions, setTransactions] = useState({})
   useEffect(() => {
     (async () => {
-      setLeague(await getLeague())
-      const rosters = await getRosters()
-      const users = await getUsers()
+      const [league, rosters, users, nflState] = await Promise.all([
+        getLeague(),
+        getRosters(),
+        getUsers(),
+        getNFLState(),
+      ])
+      setLeague(league)
+      setNflState(nflState)
       const members = users.map(({
         user_id,
         display_name,
@@ -70,7 +82,24 @@ function App() {
   async function handleSelect(e) {
     const leg = e.target.value
     if (Number.isNaN(+leg)) return
-    const transactions = await getTransactions(leg)
+    const [transactions, matchups] = await Promise.all([
+      getTransactions(leg),
+      getMatchups(leg),
+    ])
+
+    const losers = matchups.reduce((acc, curr) => {
+      const { matchup_id, points, roster_id } = curr
+      const prev = acc[matchup_id]
+      if (prev && prev.points !== points) {
+        acc[matchup_id] = prev.points < points ? prev : { roster_id, points }
+      } else if (!prev) {
+        acc[matchup_id] = { roster_id, points }
+      } else {
+        delete acc[matchup_id]
+      }
+      return acc
+    }, {})
+    setLosers(Object.values(losers))
     const trans_totals = transactions.reduce((acc, { adds, status, type }) => {
       if (status !== 'complete' || !adds) return acc
       switch (type) {
@@ -98,18 +127,21 @@ function App() {
   }
 
   function genTableData() {
+    console.log(losers);
     const table_data = members.map(({ roster_id, display_name, team_name, wins, losses, ties }) => {
       const { adds, trades } = transactions[roster_id] ?? { adds: 0, trades: 0 }
       const adds_total = adds * Settings.ADD
       const trades_total = trades * Settings.TRADE
+      const loss = losers.find((loser) => roster_id === loser.roster_id) ? 1 : 0
       return {
         header: team_name ?? display_name,
+        loss,
         record: `${wins}-${losses}-${ties}`,
         adds,
         adds_total,
         trades,
         trades_total,
-        total: adds_total + trades_total
+        total: adds_total + trades_total + (loss * Settings.LOSS)
       }
     })
     return table_data
@@ -128,15 +160,22 @@ function App() {
           </select>
         </div>
         <table>
+          <caption>
+            <strong className="caption-heading">Weekly Costs Summary:</strong>
+            <br />
+            <span className="caption-summary">
+              The Loss column is calculated based on the current state of the weeks matchup.
+              Check back after the week has ended for the most accurate results.
+              </span>
+          </caption>
           <thead>
             <tr>
               <th>Team</th>
               <th>Record</th>
-              <th>Adds</th>
-              <th>Adds Cost</th>
-              <th>Trades</th>
-              <th>Trades Cost</th>
-              <th>Total Cost</th>
+              <th>Adds ($3/ea)</th>
+              <th>Trades ($10/ea)</th>
+              <th>Loss</th>
+              <th>Total</th>
             </tr>
           </thead>
           <tbody>
@@ -145,10 +184,9 @@ function App() {
                 <tr key={data.roster_id}>
                   <th scope="row">{data.header}</th>
                   <td>{data.record}</td>
-                  <td>{data.adds}</td>
-                  <td>${data.adds_total}</td>
-                  <td>{data.trades}</td>
-                  <td>${data.trades_total}</td>
+                  <td>${data.adds_total} ({data.adds})</td>
+                  <td>${data.trades_total} ({data.trades})</td>
+                  <td>${data.loss * Settings.LOSS}</td>
                   <td>${data.total}</td>
                 </tr>
               ))
