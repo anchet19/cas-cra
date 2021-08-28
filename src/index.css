@@ -12,43 +12,11 @@ code {
     monospace;
 }
 
-.container {
-  width: 100vw;
+.content {
   display: flex;
-  justify-content: center;
-}
-table {
-  border-collapse: collapse;
+  flex-direction: column;
 }
 
-caption {
-  text-align: left;
-  margin-bottom: .25em;
-}
-
-caption .caption-heading {
-  font-size: 20px;
-}
-thead th {
-  background-color: #007000;
-  color: #fff
-}
-
-th, td {
-  border-bottom: 1px solid #ddd;
-  text-align: left;
-  padding: 15px;
-}
-
-
-.select-wrapper > label {
-  font-weight: bold;
-}
-
-select {
-  padding: 8px;
-  margin: .5em;
-  border-radius: 16px;
-  outline: none;
-  text-align-last: center;
+nav {
+  align-self: center;
 }

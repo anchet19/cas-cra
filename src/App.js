@@ -32,6 +32,7 @@ const TRANSACTION_TYPE = {
   FREE_AGENT: 'free_agent'
 }
 
+const MAX_PAGES = 5
 function App() {
   // eslint-disable-next-line
   const [league, setLeague] = useState({})
@@ -40,6 +41,8 @@ function App() {
   // eslint-disable-next-line
   const [nflState, setNflState] = useState({});
   const [transactions, setTransactions] = useState({})
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pages, setPages] = useState(new Array(MAX_PAGES).fill(0).map((_, i) => i + 1))
   useEffect(() => {
     (async () => {
       const [league, rosters, users, nflState] = await Promise.all([
@@ -50,6 +53,10 @@ function App() {
       ])
       setLeague(league)
       setNflState(nflState)
+      if (nflState.season_type === 'regular') {
+        setCurrentPage(nflState.leg)
+      }
+      console.log(nflState);
       const members = users.map(({
         user_id,
         display_name,
@@ -79,55 +86,72 @@ function App() {
     })()
   }, [])
 
-  async function handleSelect(e) {
-    const leg = e.target.value
-    if (Number.isNaN(+leg)) return
-    const [transactions, matchups] = await Promise.all([
-      getTransactions(leg),
-      getMatchups(leg),
-    ])
+  useEffect(() => {
+    (async () => {
+      const [transactions, matchups] = await Promise.all([
+        getTransactions(currentPage),
+        getMatchups(currentPage),
+      ])
 
-    const losers = matchups.reduce((acc, curr) => {
-      const { matchup_id, points, roster_id } = curr
-      const prev = acc[matchup_id]
-      if (prev && prev.points !== points) {
-        acc[matchup_id] = prev.points < points ? prev : { roster_id, points }
-      } else if (!prev) {
-        acc[matchup_id] = { roster_id, points }
-      } else {
-        delete acc[matchup_id]
-      }
-      return acc
-    }, {})
-    setLosers(Object.values(losers))
-    const trans_totals = transactions.reduce((acc, { adds, status, type }) => {
-      if (status !== 'complete' || !adds) return acc
-      switch (type) {
-        case TRANSACTION_TYPE.WAIVER:
-        case TRANSACTION_TYPE.FREE_AGENT: {
-          // adds are maps of player_id => roster_id
-          Object.values(adds).forEach(roster_id => {
-            const prev = acc[roster_id] ?? { adds: 0, trades: 0 }
-            acc[roster_id] = { ...prev, adds: prev.adds ? prev.adds + 1 : 1 }
-          })
-          break
+      const losers = matchups.reduce((acc, curr) => {
+        const { matchup_id, points, roster_id } = curr
+        const prev = acc[matchup_id]
+        if (prev && prev.points !== points) {
+          acc[matchup_id] = prev.points < points ? prev : { roster_id, points }
+        } else if (!prev) {
+          acc[matchup_id] = { roster_id, points }
+        } else {
+          delete acc[matchup_id]
         }
-        case TRANSACTION_TYPE.TRADE: {
-          Object.values(adds).forEach(roster_id => {
-            const prev = acc[roster_id] ?? { adds: 0, trades: 0 }
-            acc[roster_id] = { ...prev, trades: prev.trades ? prev.trades + 1 : 1 }
-          })
-          break
+        return acc
+      }, {})
+      setLosers(Object.values(losers))
+      const trans_totals = transactions.reduce((acc, { adds, status, type }) => {
+        if (status !== 'complete' || !adds) return acc
+        switch (type) {
+          case TRANSACTION_TYPE.WAIVER:
+          case TRANSACTION_TYPE.FREE_AGENT: {
+            // adds are maps of player_id => roster_id
+            Object.values(adds).forEach(roster_id => {
+              const prev = acc[roster_id] ?? { adds: 0, trades: 0 }
+              acc[roster_id] = { ...prev, adds: prev.adds ? prev.adds + 1 : 1 }
+            })
+            break
+          }
+          case TRANSACTION_TYPE.TRADE: {
+            Object.values(adds).forEach(roster_id => {
+              const prev = acc[roster_id] ?? { adds: 0, trades: 0 }
+              acc[roster_id] = { ...prev, trades: prev.trades ? prev.trades + 1 : 1 }
+            })
+            break
+          }
+          default:
         }
-        default:
-      }
-      return acc
-    }, {})
-    setTransactions(trans_totals)
+        return acc
+      }, {})
+      setTransactions(trans_totals)
+    })()
+  }, [currentPage])
+
+  function handlePageLeft() {
+    const first = pages[0] - MAX_PAGES
+    const last = pages[0] - 1
+    setPages(new Array(MAX_PAGES).fill(0).map((_, i) => first + i))
+    setCurrentPage(last)
+  }
+  function handlePageRight() {
+    const max = nflState.season.type === 'regular' ? nflState.leg : Settings.WEEKS
+    const first = pages[pages.length - 1] + 1
+    const pagesLeft = MAX_PAGES > max + 1 - first ? max + 1 - first : MAX_PAGES
+    setPages(new Array(pagesLeft).fill(0).map((_, i) => first + i))
+    setCurrentPage(first)
+  }
+
+  async function handlePageSelect(leg) {
+    setCurrentPage(leg)
   }
 
   function genTableData() {
-    console.log(losers);
     const table_data = members.map(({ roster_id, display_name, team_name, wins, losses, ties }) => {
       const { adds, trades } = transactions[roster_id] ?? { adds: 0, trades: 0 }
       const adds_total = adds * Settings.ADD
@@ -148,34 +172,25 @@ function App() {
   }
 
   return (
-    <div className="container">
+    <div className="container-fluid">
       <div className="content">
-        <div className="select-wrapper">
-          <label htmlFor="leg">Week: </label>
-          <select name="leg" onChange={handleSelect}>
-            <option disabled selected key="placeholder" value="placeholder">Select a Week</option>
-            {
-              new Array(Settings.WEEKS).fill(0).map((_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)
-            }
-          </select>
-        </div>
-        <table>
+        <table className="table caption-top">
           <caption>
-            <strong className="caption-heading">Weekly Costs Summary:</strong>
+            <strong>Weekly Costs Summary:</strong>
             <br />
-            <span className="caption-summary">
+            <span>
               The Loss column is calculated based on the current state of the weeks matchup.
               Check back after the week has ended for the most accurate results.
-              </span>
+          </span>
           </caption>
           <thead>
-            <tr>
-              <th>Team</th>
-              <th>Record</th>
-              <th>Adds ($3/ea)</th>
-              <th>Trades ($10/ea)</th>
-              <th>Loss</th>
-              <th>Total</th>
+            <tr className="table-dark">
+              <th scope="col">Team</th>
+              <th scope="col">Record</th>
+              <th scope="col">Adds ($3/ea)</th>
+              <th scope="col">Trades ($10/ea)</th>
+              <th scope="col">Loss</th>
+              <th scope="col">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -193,6 +208,27 @@ function App() {
             }
           </tbody>
         </table>
+        <nav aria-label="Table pagination">
+          <ul className="pagination">
+            <li className={`page-item ${pages[0] === 1 ? 'disabled' : ''}`}>
+              <button className="page-link" onClick={handlePageLeft} ariaLabel="Previous">
+                <span aria-hidden="true">&laquo;</span>
+              </button>
+            </li>
+            {
+              pages.map(page => (
+                <li className={`page-item ${currentPage === page ? 'active' : ''}`} ariaCurrent={`${currentPage === page ? 'page' : ''}`}>
+                  <button className="page-link" onClick={() => { handlePageSelect(page) }}>{page}</button>
+                </li>
+              ))
+            }
+            <li className={`page-item ${pages[pages.length - 1] === Settings.WEEKS ? 'disabled' : ''}`}>
+              <button className="page-link" onClick={handlePageRight} aria-label="Next">
+                <span aria-hidden="true">&raquo;</span>
+              </button>
+            </li>
+          </ul>
+        </nav>
       </div>
     </div>
   );
