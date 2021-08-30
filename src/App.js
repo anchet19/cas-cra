@@ -60,7 +60,8 @@ function App() {
         user_id,
         display_name,
         metadata: {
-          team_name
+          team_name,
+          avatar
         }
       }) => {
         const {
@@ -74,6 +75,7 @@ function App() {
         return {
           user_id,
           roster_id,
+          avatar,
           display_name,
           team_name,
           wins,
@@ -151,12 +153,13 @@ function App() {
   }
 
   function genTableData() {
-    const table_data = members.map(({ roster_id, display_name, team_name, wins, losses, ties }) => {
+    const table_data = members.map(({ avatar, roster_id, display_name, team_name, wins, losses, ties }) => {
       const { adds, trades } = transactions[roster_id] ?? { adds: 0, trades: 0 }
       const adds_total = adds * Settings.ADD
       const trades_total = trades * Settings.TRADE
       const loss = losers.find((loser) => roster_id === loser.roster_id) ? 1 : 0
       return {
+        avatar,
         header: team_name ?? display_name,
         roster_id,
         loss,
@@ -185,6 +188,7 @@ function App() {
           </caption>
           <thead>
             <tr className="table-dark">
+              <th className="avatar"></th>
               <th scope="col">Team</th>
               <th scope="col">Record</th>
               <th scope="col">Adds ($3/ea)</th>
@@ -197,6 +201,9 @@ function App() {
             {
               genTableData().map(data => (
                 <tr key={data.roster_id}>
+                  <td className="avatar">
+                    {data.avatar && <img alt={`${data.header} avatar`} src={data.avatar} />}
+                  </td>
                   <th scope="row">{data.header}</th>
                   <td>{data.record}</td>
                   <td>${data.adds_total} ({data.adds})</td>

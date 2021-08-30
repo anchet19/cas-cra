@@ -20,3 +20,13 @@ code {
 nav {
   align-self: center;
 }
+
+.avatar {
+  width: 40px;
+}
+
+table tr td img {
+  width: 30px;
+  height: 30px;
+  float: right;
+}
