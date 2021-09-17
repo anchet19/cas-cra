@@ -1,6 +1,8 @@
 import './App.css';
 import Settings from './league-settings'
 import { useEffect, useState } from 'react'
+import { previousTuesday, parseISO, isWithinInterval } from 'date-fns';
+import { addWeeks, nextTuesday } from 'date-fns/esm';
 
 const baseUrl = 'https://api.sleeper.app/v1'
 async function getLeague() {
@@ -88,12 +90,24 @@ function App() {
   }, [])
 
   useEffect(() => {
-    (async () => {
-      const [transactions, matchups] = await Promise.all([
-        getTransactions(currentPage),
-        getMatchups(currentPage),
-      ])
+    if (!nflState.season_start_date) return
+    // season always starts on a thursday be we want tuesday
+    const season_start_date = parseISO(nflState.season_start_date)
+    const week_selected = addWeeks(season_start_date, currentPage - 1)
+    const interval = { start: previousTuesday(week_selected), end: nextTuesday(week_selected) }
 
+    const transaction_queries = [getTransactions(currentPage)]
+    if (currentPage > 1) {
+      transaction_queries.push(getTransactions(currentPage - 1))
+    } else {
+      transaction_queries.push(Promise.resolve([]))
+    }
+    (async () => {
+      const [matchups, ...rest] = await Promise.all([
+        getMatchups(currentPage),
+        ...transaction_queries,
+      ])
+      const transactions = rest.flat()
       const losers = matchups.reduce((acc, curr) => {
         const { matchup_id, points, roster_id } = curr
         const prev = acc[matchup_id]
@@ -107,8 +121,13 @@ function App() {
         return acc
       }, {})
       setLosers(Object.values(losers))
-      const trans_totals = transactions.reduce((acc, { adds, status, type }) => {
+      const trans_totals = transactions.reduce((acc, { adds, status, type, status_updated }) => {
         if (status !== 'complete' || !adds) return acc
+        const updated_date = new Date(status_updated)
+        /**@todo  Date ranges needs work.
+         *        Need to only include transactions from previous tuesday(12am) through following monday (before tuesday 12am)
+        */
+        if (!isWithinInterval(updated_date, interval)) return acc
         switch (type) {
           case TRANSACTION_TYPE.WAIVER:
           case TRANSACTION_TYPE.FREE_AGENT: {
@@ -132,7 +151,7 @@ function App() {
       }, {})
       setTransactions(trans_totals)
     })()
-  }, [currentPage])
+  }, [currentPage, nflState.season_start_date])
 
   function handlePageLeft() {
     const first = pages[0] - MAX_PAGES
