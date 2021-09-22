@@ -179,7 +179,8 @@ function App() {
       const loss = losers.find((loser) => roster_id === loser.roster_id) ? 1 : 0
       return {
         avatar,
-        header: team_name ?? display_name,
+        header: team_name ?? `Team ${display_name}`,
+        sub_header: `@${display_name}`,
         roster_id,
         loss,
         record: `${wins}-${losses}-${ties}`,
@@ -223,12 +224,16 @@ function App() {
                   <td className="avatar">
                     {data.avatar && <img alt={`${data.header} avatar`} src={data.avatar} />}
                   </td>
-                  <th scope="row">{data.header}</th>
-                  <td>{data.record}</td>
-                  <td>${data.adds_total} ({data.adds})</td>
-                  <td>${data.trades_total} ({data.trades})</td>
-                  <td>${data.loss * Settings.LOSS}</td>
-                  <td>${data.total}</td>
+                  <th className="align-middle" scope="row">
+                    <span>{data.header}</span>
+                    <br />
+                    <span>{data.sub_header}</span>
+                  </th>
+                  <td className="align-middle">{data.record}</td>
+                  <td className="align-middle">${data.adds_total} ({data.adds})</td>
+                  <td className="align-middle">${data.trades_total} ({data.trades})</td>
+                  <td className="align-middle">${data.loss * Settings.LOSS}</td>
+                  <td className="align-middle">${data.total}</td>
                 </tr>
               ))
             }
